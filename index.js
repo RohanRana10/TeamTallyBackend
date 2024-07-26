@@ -12,6 +12,7 @@ app.get('/', (req, res) => {
 app.use(express.json());
 app.use('/auth', require('./routes/auth'));
 app.use('/groups', require('./routes/groups'));
+app.use('/payments', require('./routes/payments'));
 
 app.listen(port, () => {
     console.log(`Example app listening on port ${port}`)

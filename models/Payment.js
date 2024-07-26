@@ -1,6 +1,10 @@
 const mongoose = require('mongoose');
 
 const paymentSchema = new mongoose.Schema({
+    payer: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
     description: {
         type: String,
         required: true
@@ -12,10 +16,10 @@ const paymentSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
-    group: [{
+    group: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Group'
-    }],
+    },
     participants: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'

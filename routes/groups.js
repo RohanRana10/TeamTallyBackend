@@ -15,6 +15,7 @@ router.post('/create', fetchUser, async (req, res) => {
         // user.groups.push(group._id);
         // await user.save();
         members.forEach(async (memberId) => {
+            //TODO check if the member is a user or not
             const user = await userModel.findById(memberId);
             user.groups.push(group._id);
             await user.save();
@@ -30,11 +31,95 @@ router.post('/create', fetchUser, async (req, res) => {
 router.get('/get-details', fetchUser, async (req, res) => {
     try {
         let { groupId } = req.body;
-        const group = await groupModel.findById(groupId).populate('members');
+        const group = await groupModel.findById(groupId).populate({
+            path: 'members',
+            select: '-password -__v -groups'
+        }).populate({
+            path: 'payments',
+            select: '-__v -group'
+        });
+
         if (!group) {
             return res.status(400).json({ message: "Group not found" })
         }
-        res.status(200).json({ data: group });
+        let settlements = [];
+        // let settlements = {};
+        // group.members.forEach((member) => {
+        //     if (member._id.toString() !== req.user.id.toString()) {
+        //         settlements[member.name] = 0;
+        //     }
+        // })
+        group.members.forEach((member) => {
+            if (member._id.toString() !== req.user.id.toString()) {
+                settlements.push({
+                    id: member._id,
+                    name: member.name,
+                    amount: 0
+                })
+            }
+        })
+
+        // group.payments.forEach(async (payment) => {
+        //     if (payment.payer.toString() === req.user.id.toString()) {
+        //         console.log("user is the payer");
+        //         Object.keys(settlements).forEach(participant => {
+        //             const share = (payment.amount / payment.participants.length).toFixed(2);
+        //             settlements[participant] += parseFloat(share);
+        //         })
+        //         // //TODO add a check if payer is not in participants list
+        //     }
+        //     else if(payment.participants.includes(req.user.id)){
+        //         console.log("user is the participant");
+        //         const share = (payment.amount / payment.participants.length).toFixed(2);
+        //         let user = await userModel.findById(payment.payer);
+        //         console.log('Before subtraction:', settlements[user.name]);
+        //         settlements[user.name] -= parseFloat(share);
+        //         console.log('After subtraction:', settlements[user.name]);
+        //     }
+        //     else{
+        //         console.log("did nothing");
+        //     }
+        // })
+
+        // res.status(200).json({ data: group, settlements });
+
+        await Promise.all(group.payments.map(async (payment) => {
+            if (payment.payer.toString() === req.user.id.toString()) {
+
+                console.log("user is the payer");
+
+                settlements.forEach(object => {
+                    if (payment.participants.includes(object.id)) {
+                        console.log(`${object.name} is a participant`)
+                        const share = (payment.amount / payment.participants.length).toFixed(2);
+                        object.amount += parseFloat(share);
+                    }
+
+                });
+
+                //TODO add a check if payer is not in participants list
+            }
+            else if (payment.participants.includes(req.user.id)) {
+                console.log("user is the participant");
+
+                const share = (payment.amount / payment.participants.length).toFixed(2);
+                let user = await userModel.findById(payment.payer);
+                let temp = settlements.find(object => object.id.toString() === user._id.toString());
+                console.log('Before subtraction:', temp);
+                // settlements[user.name] -= parseFloat(share);
+
+                if (temp) {
+                    temp.amount -= parseFloat(share);
+                }
+
+                console.log('After subtraction:', temp);
+            }
+            else {
+                console.log("did nothing");
+            }
+        }));
+
+        res.status(200).json({ data: group, settlements });
     } catch (error) {
         console.error("error creating group: ", error);
         res.status(500).json({ error: "Internal server srror!" });
