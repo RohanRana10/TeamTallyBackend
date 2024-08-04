@@ -11,7 +11,7 @@ const jwtSecret = process.env.JWT_SECRET;
 //POST route to create a new user
 router.post('/create', async (req, res) => {
     try {
-        let { name, email, password, image } = req.body;
+        let { name, email, password, cpassword, image } = req.body;
         if (!name) {
             return res.status(400).json({ error: "Please provide a name" });
         }
@@ -20,6 +20,12 @@ router.post('/create', async (req, res) => {
         }
         if (!password) {
             return res.status(400).json({ error: "Please provide a password" });
+        }
+        if (!cpassword) {
+            return res.status(400).json({ error: "Please provide a password confirmation" });
+        }
+        if (password != cpassword) {
+            return res.status(400).json({ error: "Passwords do not match" });
         }
         if (password.length < 5) {
             return res.status(400).json({ error: "Please provide a password of length greater than 5 characters" });
@@ -49,6 +55,34 @@ router.post('/create', async (req, res) => {
         res.status(201).json({ message: "Signup Successful!", authtoken });
     } catch (error) {
         console.error("error creating user: ", error);
+        res.status(500).json({ error: "Internal erver error!" });
+    }
+})
+
+router.post('/update-user', fetchUser, async (req, res) => {
+    try {
+        let { name, image } = req.body;
+        if (!name) {
+            return res.status(400).json({ error: "Please provide a name" });
+        }
+
+        let user = await userModel.findById(req.user.id);
+        if (!user) {
+            return res.status(400).json({ message: "user not found" })
+        }
+
+        let newUser = {};
+        if (name) {
+            newUser.name = name;
+        }
+        if (image) {
+            newUser.image = image;
+        }
+
+        user = await userModel.findByIdAndUpdate(req.user.id, { $set: newUser }, { new: true });
+        res.status(200).json({ message: "user details updated", data: user });
+    } catch (error) {
+        console.error("error updating user: ", error);
         res.status(500).json({ error: "Internal erver error!" });
     }
 })

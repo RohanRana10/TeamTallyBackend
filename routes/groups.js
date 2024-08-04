@@ -4,26 +4,42 @@ const userModel = require('../models/User');
 const groupModel = require('../models/Group');
 const fetchUser = require('../middleware/fetchUser');
 
+const generateGroupCode = () => {
+    const randomNumber = Math.floor(Math.random() * 1000000);
+    const formattedCode = randomNumber.toString().padStart(6, '0');
+    return formattedCode;
+}
+
 //POST route to create a new group
 router.post('/create', fetchUser, async (req, res) => {
     try {
-        let { name, image, members } = req.body;
+        let { name, image, type } = req.body;
+
+        let code = generateGroupCode();
+        const groupFound = await groupModel.findOne({ code: code });
+
+        while(groupFound){
+            code = generateGroupCode();
+            groupFound = await groupModel.findOne({ code: code });
+        }
+
         const group = await groupModel.create({
-            name, image, members, creator: req.user.id
+            name, image, creator: req.user.id, type, code
         })
         const user = await userModel.findById(req.user.id);
         // user.groups.push(group._id);
         // await user.save();
-        members.forEach(async (memberId) => {
-            //TODO check if the member is a user or not
-            const user = await userModel.findById(memberId);
-            user.groups.push(group._id);
-            await user.save();
-        });
+
+        // members.forEach(async (memberId) => {
+        //     //TODO check if the member is a user or not
+        //     const user = await userModel.findById(memberId);
+        //     user.groups.push(group._id);
+        //     await user.save();
+        // });
         res.status(201).json({ message: "group created", group });
     } catch (error) {
         console.error("error creating group: ", error);
-        res.status(500).json({ error: "Internal server srror!" });
+        res.status(500).json({ error: "Internal server error!" });
     }
 })
 
@@ -36,7 +52,11 @@ router.get('/get-details', fetchUser, async (req, res) => {
             select: '-password -__v -groups'
         }).populate({
             path: 'payments',
-            select: '-__v -group'
+            select: '-__v -group',
+            populate: {
+                path: 'payer',
+                select: '-password -__v -groups -Date'
+            }
         });
 
         if (!group) {
@@ -126,6 +146,31 @@ router.get('/get-details', fetchUser, async (req, res) => {
     }
 })
 
+router.post('/add-member', fetchUser, async (req, res) => {
+    try {
+        let {code} = req.body;
+        const group = await groupModel.findOne({code: code});
+        if(!group){
+            return res.status(400).json({error: "Group not found"});
+        }
+        group.members.push(req.user.id);
+        await group.save();
+
+        const user = await userModel.findById(req.user.id);
+        user.groups.push(group._id);
+        await user.save();
+
+        // const user = await userModel.findById(memberId);
+        //     user.groups.push(group._id);
+        //     await user.save();
+        res.status(200).json({message: "Member added to group successfully"});
+        
+    } catch (error) {
+        console.error("error adding member: ", error);
+        res.status(500).json({ error: "Internal server srror!" });
+    }
+})
+
 //POST route for updating group details
 router.post('/update-group', fetchUser, async (req, res) => {
     try {
@@ -182,5 +227,6 @@ router.delete('/delete-group', fetchUser, async (req, res) => {
         res.status(500).json({ error: "Internal server srror!" });
     }
 })
+
 
 module.exports = router;
