@@ -25,7 +25,13 @@ router.post('/create', async (req, res) => {
             return res.status(400).json({ error: "Please provide a password confirmation" });
         }
         if (password != cpassword) {
-            return res.status(400).json({ error: "Passwords do not match" });
+            return res.status(200).json({
+                status: {
+                    statusCode: -1,
+                    statusMessage: "Passwords do not match!"
+                },
+                data: null
+            });
         }
         if (password.length < 5) {
             return res.status(400).json({ error: "Please provide a password of length greater than 5 characters" });
@@ -34,14 +40,23 @@ router.post('/create', async (req, res) => {
         // Check if the email already exists
         let user = await userModel.findOne({ email });
         if (user) {
-            return res.status(400).json({ error: "Email already exists!" });
+            return res.status(200).json({
+                status: {
+                    statusCode: -1,
+                    statusMessage: "Email already exists!"
+                },
+                data: null
+            });
         }
 
         const salt = await bcrypt.genSalt(10);
         let securePassword = await bcrypt.hash(password, salt);
 
         user = await userModel.create({
-            name, email, image, password: securePassword
+            name,
+            email,
+            image: "https://res.cloudinary.com/dyhwcqnzl/image/upload/v1723301716/user-avatar-line-style-free-vector_wepybk.jpg",
+            password: securePassword
         })
 
         // Generate JWT token
@@ -50,9 +65,21 @@ router.post('/create', async (req, res) => {
                 id: user._id
             }
         }
-        const authtoken = jwt.sign(data, jwtSecret);
 
-        res.status(201).json({ message: "Signup Successful!", authtoken });
+        user = await userModel.findOne({ email }).select('-password -__v');
+
+        const authToken = jwt.sign(data, jwtSecret);
+
+        res.status(201).json({
+            status: {
+                statusCode: 1,
+                statusMessage: "Signup Successful!"
+            },
+            data: {
+                authToken,
+                user
+            }
+        });
     } catch (error) {
         console.error("error creating user: ", error);
         res.status(500).json({ error: "Internal erver error!" });
@@ -68,7 +95,13 @@ router.post('/update-user', fetchUser, async (req, res) => {
 
         let user = await userModel.findById(req.user.id);
         if (!user) {
-            return res.status(400).json({ message: "user not found" })
+            return res.status(200).json({
+                tatus: {
+                    statusCode: -1,
+                    statusMessage: "Invalid user credentials!"
+                },
+                data: null
+            })
         }
 
         let newUser = {};
@@ -80,7 +113,14 @@ router.post('/update-user', fetchUser, async (req, res) => {
         }
 
         user = await userModel.findByIdAndUpdate(req.user.id, { $set: newUser }, { new: true });
-        res.status(200).json({ message: "user details updated", data: user });
+        // res.status(200).json({ message: "user details updated", data: user });
+        return res.status(200).json({
+            status: {
+                statusCode: 1,
+                statusMessage: "User detials updated!"
+            },
+            data: user
+        });
     } catch (error) {
         console.error("error updating user: ", error);
         res.status(500).json({ error: "Internal erver error!" });
@@ -102,13 +142,27 @@ router.post('/login', async (req, res) => {
         //Check if user exists for the given email
         let user = await userModel.findOne({ email });
         if (!user) {
-            return res.status(400).json({ error: "Please provide valid credentials!" });
+            return res.status(200).json({
+                status: {
+                    statusCode: -1,
+                    statusMessage: "Please provide valid login credentials!"
+                },
+                data: null
+            });
         }
 
         const passwordCompare = await bcrypt.compare(password, user.password);
         if (!passwordCompare) {
-            return res.status(400).json({ error: "Please provide valid credentials!" });
+            return res.status(200).json({
+                status: {
+                    statusCode: -1,
+                    statusMessage: "Please provide valid credentials!"
+                },
+                data: null
+            });
         }
+
+        user = await userModel.findOne({ email }).select('-password -__v');
 
         // Generate JWT token
         let data = {
@@ -116,8 +170,17 @@ router.post('/login', async (req, res) => {
                 id: user._id
             }
         }
-        const authtoken = jwt.sign(data, jwtSecret);
-        res.status(200).json({ message: "Login successful!", authtoken });
+        const authToken = jwt.sign(data, jwtSecret);
+        res.status(200).json({
+            status: {
+                statusCode: 1,
+                statusMessage: "Login Successful!"
+            },
+            data: {
+                authToken,
+                user
+            }
+        });
     } catch (error) {
         console.error("error logging in user: ", error);
         res.status(500).json({ error: "Internal server srror!" });
@@ -140,9 +203,22 @@ router.post('/get-image-url', upload.single('image'), (req, res) => {
     cloudinary.uploader.upload(req.file.path, (error, result) => {
         if (error) {
             console.error("error saving user image: ", error);
-            return res.status(500).json({ error: "Internal server srror!" });
+            return res.status(200).json({
+                status: {
+                    statusCode: -1,
+                    statusMessage: "Some Error Occured!"
+                },
+                data: null
+            });
         }
-        res.status(200).json({ message: "image save successful!", url: result.url })
+        // res.status(200).json({ message: "image save successful!", url: result.url })
+        res.status(200).json({
+            status: {
+                statusCode: 1,
+                statusMessage: "Image save successful!"
+            },
+            data: result.url
+        })
     })
 })
 

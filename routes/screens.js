@@ -11,8 +11,16 @@ router.get('/dashboard', fetchUser, async (req, res) => {
         };
         let user = await userModel.findById(req.user.id);
         if (!user) {
-            return res.status(400).json({ error: "User not found" });
+            return res.status(200).json({
+                status: {
+                    statusCode: -1,
+                    statusMessage: "Invalid user credentials!"
+                },
+                data: null
+            });
         }
+
+        dataToSend.userImage = user.image;
 
         await Promise.all(user.groups.map(async (groupId) => {
             const group = await groupModel.findById(groupId).populate({
@@ -28,6 +36,7 @@ router.get('/dashboard', fetchUser, async (req, res) => {
             });
 
             let settlements = [];
+            let totalSpends = 0;
 
             group.members.forEach((member) => {
                 if (member._id.toString() !== req.user.id.toString()) {
@@ -75,15 +84,52 @@ router.get('/dashboard', fetchUser, async (req, res) => {
                 }
             }));
 
+            settlements.map((settlement) => {
+                totalSpends += settlement.amount;
+            })
+
             dataToSend.groups.push({
                 groupDetails: group,
-                settlements
+                settlements,
+                totalSpends
             });
         }));
 
-        res.status(200).json({ message: "dashboard data", data: dataToSend });
+        // res.status(200).json({ message: "dashboard data", data: dataToSend });
+        res.status(200).json({
+            status: {
+                statusCode: 1,
+                statusMessage: "dashboard fetch successful"
+            },
+            data: dataToSend
+        });
     } catch (error) {
         console.log("Error fetching dashboard info");
+        res.status(500).json({ message: "Internal server error!" })
+    }
+})
+
+router.get('/profile', fetchUser, async (req, res) => {
+    try {
+        let user = await userModel.findById(req.user.id).select('-password -__v');
+        if (!user) {
+            return res.status(200).json({
+                status: {
+                    statusCode: -1,
+                    statusMessage: "Invalid user credentials!"
+                },
+                data: null
+            });
+        }
+        res.status(200).json({
+            status: {
+                statusCode: 1,
+                statusMessage: "profile fetch successful"
+            },
+            data: user
+        })
+    } catch (error) {
+        console.log("Error fetching profile info");
         res.status(500).json({ message: "Internal server error!" })
     }
 })
