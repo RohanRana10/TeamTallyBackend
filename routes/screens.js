@@ -36,57 +36,44 @@ router.get('/dashboard', fetchUser, async (req, res) => {
             });
 
             let settlements = [];
-            let totalSpends = 0;
 
+            // Initialize settlements for each member except the current user
             group.members.forEach((member) => {
                 if (member._id.toString() !== req.user.id.toString()) {
                     settlements.push({
                         id: member._id,
                         name: member.name,
-                        amount: 0
-                    })
-                }
-            })
-
-            await Promise.all(group.payments.map(async (payment) => {
-                if (payment.payer.toString() === req.user.id.toString()) {
-
-                    console.log("user is the payer");
-
-                    settlements.forEach(object => {
-                        if (payment.participants.includes(object.id)) {
-                            console.log(`${object.name} is a participant`)
-                            const share = (payment.amount / payment.participants.length).toFixed(2);
-                            object.amount += parseFloat(share);
-                        }
-
+                        amount: 0 // Initial amount owed
                     });
-
-                    //TODO add a check if payer is not in participants list
                 }
-                else if (payment.participants.includes(req.user.id)) {
-                    console.log("user is the participant");
+            });
 
-                    const share = (payment.amount / payment.participants.length).toFixed(2);
-                    let user = await userModel.findById(payment.payer);
-                    let temp = settlements.find(object => object.id.toString() === user._id.toString());
-                    console.log('Before subtraction:', temp);
-                    // settlements[user.name] -= parseFloat(share);
+            // Process payments to calculate the settlements
+            await Promise.all(group.payments.map(async (payment) => {
+                const share = (payment.amount / payment.participants.length).toFixed(2);
 
-                    if (temp) {
-                        temp.amount -= parseFloat(share);
+                // If the user is the payer
+                if (payment.payer._id.toString() === req.user.id.toString()) {
+                    settlements.forEach((settlement) => {
+                        if (payment.participants.includes(settlement.id.toString())) {
+                            settlement.amount += parseFloat(share); // Others owe the payer
+                        }
+                    });
+                }
+                // If the user is a participant
+                else if (payment.participants.includes(req.user.id.toString())) {
+                    let payerSettlement = settlements.find(settlement => settlement.id.toString() === payment.payer._id.toString());
+                    if (payerSettlement) {
+                        payerSettlement.amount -= parseFloat(share); // The payer owes the participant
                     }
-
-                    console.log('After subtraction:', temp);
-                }
-                else {
-                    console.log("did nothing");
                 }
             }));
 
-            settlements.map((settlement) => {
-                totalSpends += settlement.amount;
-            })
+            // Calculate totalSpends based on the settlements
+            let totalSpends = 0;
+            settlements.forEach((settlement) => {
+                totalSpends += settlement.amount;  // Aggregate total amounts
+            });
 
             dataToSend.groups.push({
                 groupDetails: group,
@@ -94,6 +81,8 @@ router.get('/dashboard', fetchUser, async (req, res) => {
                 totalSpends
             });
         }));
+
+        dataToSend.groups.sort((a, b) => new Date(a.groupDetails.Date) - new Date(b.groupDetails.Date));
 
         // res.status(200).json({ message: "dashboard data", data: dataToSend });
         res.status(200).json({

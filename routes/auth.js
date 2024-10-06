@@ -117,7 +117,7 @@ router.post('/update-user', fetchUser, async (req, res) => {
         return res.status(200).json({
             status: {
                 statusCode: 1,
-                statusMessage: "User detials updated!"
+                statusMessage: "User details updated!"
             },
             data: user
         });
